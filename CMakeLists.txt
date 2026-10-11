@@ -5,7 +5,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Add executable
-add_executable(code simulator.cpp)
+add_executable(code simple_simulator.cpp)
 
 # Set compiler flags
 target_compile_options(code PRIVATE -O2 -Wall -Wextra)
