@@ -407,7 +407,7 @@ public:
         // Writeback stage
         if (mem_wb.valid) {
             if (mem_wb.instr.type == InstrType::R_TYPE || 
-                mem_wb.instr.type == InstrType::I_TYPE ||
+                (mem_wb.instr.type == InstrType::I_TYPE && mem_wb.instr.opcode == 0b0010011) ||
                 mem_wb.instr.type == InstrType::U_TYPE) {
                 if (mem_wb.instr.rd != 0) { // x0 is hardwired to 0
                     regs[mem_wb.instr.rd] = mem_wb.alu_result;
@@ -489,6 +489,13 @@ public:
                 if_id.pc = pc;
                 if_id.valid = true;
                 
+                // Check for unknown instruction - treat as NOP
+                if (if_id.instr.type == InstrType::UNKNOWN) {
+                    if_id.valid = false;
+                    pc += 4;
+                    return;
+                }
+                
                 // Update PC for next instruction
                 if (flush) {
                     // Handle branch/jump
@@ -565,10 +572,57 @@ vector<uint8_t> read_input_data() {
     return data;
 }
 
+// Read hex data from stdin (alternative format)
+vector<uint8_t> read_hex_data() {
+    vector<uint8_t> data;
+    string line;
+    
+    while (getline(cin, line)) {
+        // Skip empty lines and comments
+        if (line.empty() || line[0] == '#') continue;
+        
+        // Try to parse as hex
+        try {
+            // Remove any whitespace
+            line.erase(remove_if(line.begin(), line.end(), ::isspace), line.end());
+            
+            // Parse hex string
+            for (size_t i = 0; i < line.length(); i += 2) {
+                if (i + 1 < line.length()) {
+                    string byte_str = line.substr(i, 2);
+                    uint8_t byte = static_cast<uint8_t>(stoi(byte_str, nullptr, 16));
+                    data.push_back(byte);
+                }
+            }
+        } catch (...) {
+            // If hex parsing fails, try to parse as decimal integers
+            istringstream iss(line);
+            uint32_t val;
+            while (iss >> val) {
+                // Add 4 bytes for each 32-bit value in little endian
+                data.push_back(val & 0xFF);
+                data.push_back((val >> 8) & 0xFF);
+                data.push_back((val >> 16) & 0xFF);
+                data.push_back((val >> 24) & 0xFF);
+            }
+        }
+    }
+    
+    return data;
+}
+
 int main() {
     try {
-        // Read program data from stdin
+        // Try to read program data from stdin
         vector<uint8_t> program_data = read_input_data();
+        
+        // If binary reading fails or gives no data, try hex format
+        if (program_data.empty()) {
+            // Clear stdin and try again
+            cin.clear();
+            cin.seekg(0);
+            program_data = read_hex_data();
+        }
         
         if (program_data.empty()) {
             cerr << "Error: No input data provided" << endl;
